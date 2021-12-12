@@ -232,6 +232,7 @@ private:
                 continue;
             }
             for (const auto [document_id, _] : word_to_document_freqs_.at(word)) {
+                (void)_;
                 document_to_relevance.erase(document_id);
             }
         }
