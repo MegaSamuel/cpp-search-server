@@ -508,7 +508,7 @@ void TestDocumentMatch()
 
 //  Возвращаемые при поиске документов результаты должны быть отсортированы в
 // порядке убывания релевантности
-void TestSortByRelavant()
+void TestSortByRelevance()
 {
     SearchServer server;
 
@@ -550,10 +550,10 @@ void TestCalcRating()
 }
 
 // Фильтрация результатов поиска с использованием предиката, задаваемого пользователем
-// void TestFilterByPredicate()
-// {
+void TestFilterByPredicate()
+{
 
-// }
+}
 
 // Поиск документов, имеющих заданный статус
 void TestSearchByStatus()
@@ -646,9 +646,9 @@ void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);  // учет стоп-слов
     RUN_TEST(TestExcludeMinusWordsFromAddedDocumentContent); // учет минус-слов
     RUN_TEST(TestDocumentMatch);                             // матчинг документов
-    RUN_TEST(TestSortByRelavant);                            // сортировка результата по релевантности
+    RUN_TEST(TestSortByRelevance);                           // сортировка результата по релевантности
     RUN_TEST(TestCalcRating);                                // вычисление рейтинга
-    //RUN_TEST(TestFilterByPredicate);                         // фильтрация по предикату
+    RUN_TEST(TestFilterByPredicate);                         // фильтрация по предикату
     RUN_TEST(TestSearchByStatus);                            // поиск документов по статусу
     RUN_TEST(TestCalcRelevant);                              // вычисление релевантности
 }
