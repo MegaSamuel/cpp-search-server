@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <numeric>
 #include <iterator>
 #include <stdexcept>
 
@@ -71,8 +72,9 @@ enum class DocumentStatus {
 class SearchServer {
 public:
     // Defines an invalid document id
-    // You can refer to this constant as SearchServer::INVALID_DOCUMENT_ID
     inline static constexpr int INVALID_DOCUMENT_ID = -1;
+    // Defines an error for double values
+    inline static constexpr double EPSILON_DOUBLE = 1e-6;
 
     explicit SearchServer(const string& text) 
     {
@@ -93,7 +95,7 @@ public:
         {
             // Наличие спецсимволов — то есть символов с кодами в диапазоне от 0 до 31 включительно
             if(!IsValidWord(it))
-                throw invalid_argument("Forbidden symbol is detected in stop-word"s);
+                throw invalid_argument("Forbidden symbol is detected in stop-word \""s + it + "\""s);
 
             // если слово it не пустое, то добавляем
             // stop_words_ это множество set, соответственно дубликаты отсеются
@@ -129,17 +131,13 @@ public:
     template <typename DocumentPredicate>
     vector<Document> FindTopDocuments(const string& raw_query, DocumentPredicate document_predicate) const 
     {
-        Query query;
+        const Query query = ParseQuery(raw_query);
 
-        if(!ParseQuery(raw_query, query))
-            throw invalid_argument("Invalid query is detected"s);
-
-        vector<Document> result;
-        result = FindAllDocuments(query, document_predicate);
+        vector<Document> result = FindAllDocuments(query, document_predicate);
         
         sort(result.begin(), result.end(),
              [](const Document& lhs, const Document& rhs) {
-                if (abs(lhs.relevance - rhs.relevance) < 1e-6) {
+                if (abs(lhs.relevance - rhs.relevance) < EPSILON_DOUBLE) {
                     return lhs.rating > rhs.rating;
                 } else {
                     return lhs.relevance > rhs.relevance;
@@ -171,8 +169,7 @@ public:
     {
         if((number < 0) || (number >= GetDocumentCount()))
         {
-            //return INVALID_DOCUMENT_ID;
-            throw out_of_range("number is out of range"s);
+            throw out_of_range("Number "s + to_string(number) + " is out of range"s);
         }
 
         auto it = documents_.begin();
@@ -184,12 +181,10 @@ public:
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const
     {
-        Query query;
-
-        if(!ParseQuery(raw_query, query))
-            throw invalid_argument("Invalid query is detected"s);
+        const Query query = ParseQuery(raw_query);
 
         vector<string> matched_words;
+
         for (const string& word : query.plus_words) {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
@@ -244,11 +239,7 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
-        return rating_sum / static_cast<int>(ratings.size());
+        return accumulate(ratings.begin(), ratings.end(), 0) / static_cast<int>(ratings.size());
     }
     
     struct QueryWord {
@@ -257,7 +248,7 @@ private:
         bool is_stop;
     };
     
-    [[nodiscard]] bool ParseQueryWord(string text, QueryWord& query_word) const 
+    QueryWord ParseQueryWord(string text) const 
     {
         bool is_minus = false;
 
@@ -266,11 +257,11 @@ private:
         {
             // после '-' нет букв
             if(1 == text.length())
-                return false;
+                throw invalid_argument("Detected no letters after '-' symbol"s);
 
             // несколько подряд символов '-'
             if('-' == text[1])
-                return false;
+                throw invalid_argument("Detected several '-' symbols in a row in \""s + text + "\""s);
 
             is_minus = true;
             text = text.substr(1);
@@ -278,11 +269,9 @@ private:
 
         // проверка на наличие спецсимволов
         if(!IsValidWord(text))
-            return false;
+            throw invalid_argument("Forbidden symbol is detected in \""s + text + "\""s);
 
-        query_word = {text, is_minus, IsStopWord(text)};
-
-        return true;
+        return {text, is_minus, IsStopWord(text)};
     }
     
     struct Query {
@@ -290,22 +279,13 @@ private:
         set<string> minus_words;
     };
     
-    [[nodiscard]] bool ParseQuery(const string& text, Query& query) const 
+    Query ParseQuery(const string& text) const 
     {
-        bool ret = true;
+        Query query;
 
         for(const string& word : SplitIntoWords(text)) 
         {
-            QueryWord query_word;
-            
-            if(!ParseQueryWord(word, query_word))
-            {
-                ret = false;
-                query.minus_words.clear();
-                query.plus_words.clear();
-                break;
-            }
-
+            const QueryWord query_word = ParseQueryWord(word);
             if (!query_word.is_stop) {
                 if (query_word.is_minus) {
                     query.minus_words.insert(query_word.data);
@@ -315,7 +295,7 @@ private:
             }
         }
 
-        return ret;
+        return query;
     }
     
     // Existence required
@@ -420,7 +400,15 @@ void MatchDocuments(const SearchServer& search_server, const string& query) {
 
 int main() 
 {
+#if 1
     SearchServer search_server("и в на"s);
+#else
+    set<string> stop;
+    stop.insert("и");
+    stop.insert("в");
+    stop.insert("н\x12а");
+    SearchServer search_server(stop);
+#endif
 
     AddDocument(search_server, 1, "пушистый кот пушистый хвост"s, DocumentStatus::ACTUAL, {7, 2, 7});
     AddDocument(search_server, 1, "пушистый пёс и модный ошейник"s, DocumentStatus::ACTUAL, {1, 2});
