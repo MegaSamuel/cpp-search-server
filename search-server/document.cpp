@@ -6,6 +6,14 @@
 
 using namespace std;
 
+Document::Document() : id(0), relevance(0), rating(0) {
+
+}
+
+Document::Document(int _id, double _relevance, int _rating) : id(_id), relevance(_relevance), rating(_rating) {
+    
+}
+
 // вывод Document
 ostream& operator<<(ostream& output, const Document& document) { 
     output << "{ "s

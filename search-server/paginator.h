@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <vector>
 #include <iterator>
 
@@ -37,26 +38,32 @@ public:
 
     explicit Paginator(Iterator begin, Iterator end, int size) : m_it_begin(begin), m_it_end(end), m_page_size(size) {
         // тут формируем массив m_vctRange на основе m_it_begin, m_it_end и размера страницы m_page_size
+
+        // проверка, что начало "раньше" конца
+        assert(end >= begin);
+        // проверка, что размер страницы не ноль
+        assert(size != 0);
+
+        // итератор на начало изначально указывает на начало
         Iterator it_begin = m_it_begin;
 
-        //TODO как-то криво это выглядит, надо бы переписать
+        // пока итераторы не встретятся
         while(it_begin != m_it_end)
         {
+            // новый итератор на конец - это старый итератор на начало
             Iterator it_end = it_begin; 
-            int dist1 = distance(it_end, m_it_end);
-            if(dist1 < m_page_size)
-                advance(it_end, dist1);
-            else
-                advance(it_end, m_page_size);
 
+            // двигаем конечный итератор на то, что меньше: расстояние между самим итератором и концом диапазона
+            // или размер страницы
+            advance(it_end, std::min(static_cast<int>(distance(it_end, m_it_end)), m_page_size));
+
+            // формируем IteratorRange<Iterator> и кладем в вектор
             IteratorRange<Iterator> it_range(it_begin, it_end);
             m_vctRange.push_back(it_range);
 
-            int dist2 = distance(it_begin, m_it_end);
-            if(dist2 < m_page_size)
-                advance(it_begin, dist2);
-            else
-                advance(it_begin, m_page_size);
+            // двигаем начальный итератор на то, что меньше: расстояние между самим итератором и концом диапазона
+            // или размер страницы
+            advance(it_begin, std::min(static_cast<int>(distance(it_begin, m_it_end)), m_page_size));
         }
     }
 
