@@ -64,9 +64,18 @@ public:
 
     int GetDocumentCount() const;
 
-    int GetDocumentId(int number) const;
+    // константные итераторы на начало и конец вектора с id документов
+    std::vector<int>::const_iterator begin() const;
+    std::vector<int>::const_iterator end() const;
 
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+
+    void RemoveDocument(int document_id);
+ 
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
+
+    // мапа: ключ - id документа, значение - множество слов
+    std::map<int, std::set<std::string>> document_to_set_words;
 
 private:
     struct DocumentData {
@@ -80,7 +89,11 @@ private:
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
     // мапа: ключ - id документа, значение - данные документа
     std::map<int, DocumentData> documents_;
-    
+    // вектор из id добавленных документов
+    std::vector<int> documents_id_;
+    // мапа: ключ - id документа, значение - мапа: ключ - слово, значение - частота
+    std::map<int, std::map<std::string, double>> document_to_word_freqs_;
+
     bool IsStopWord(const std::string& word) const;
     
     std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const;
