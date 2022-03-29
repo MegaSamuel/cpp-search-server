@@ -17,7 +17,7 @@ std::vector<std::vector<Document>> ProcessQueries(const SearchServer& search_ser
     std::vector<std::vector<Document>> documents_lists(queries.size());
 
     // заполняем вектор
-    std::transform(queries.begin(), queries.end(), documents_lists.begin(),
+    std::transform(std::execution::par, queries.begin(), queries.end(), documents_lists.begin(),
                    [&search_server](const std::string& query) { return search_server.FindTopDocuments(query); });
 #endif
 
