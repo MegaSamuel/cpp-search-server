@@ -1,10 +1,13 @@
 #pragma once
 
+#include <iostream>
 #include <string>
+#include <string_view>
 #include <algorithm>
 #include <stdexcept>
 #include <map>
 #include <set>
+#include <execution>
 
 #include "document.h"
 
@@ -39,10 +42,19 @@ public:
     std::vector<int>::const_iterator begin() const;
     std::vector<int>::const_iterator end() const;
 
-    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+    const std::map<std::string_view, double>& GetWordFrequencies(int document_id) const;
+
+#if 0
+    template <typename ExecutionPolicy>
+    void RemoveDocument(ExecutionPolicy&& policy, int document_id);
+#endif
+
+    void RemoveDocument(const std::execution::sequenced_policy&, int document_id);
+
+    void RemoveDocument(const std::execution::parallel_policy&, int document_id);
 
     void RemoveDocument(int document_id);
- 
+
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
     // мапа: ключ - id документа, значение - множество слов
@@ -62,8 +74,8 @@ private:
     std::map<int, DocumentData> documents_;
     // вектор из id добавленных документов
     std::vector<int> documents_id_;
-    // мапа: ключ - id документа, значение - мапа: ключ - слово, значение - частота
-    std::map<int, std::map<std::string, double>> document_to_word_freqs_;
+    // мапа: ключ - id документа, значение - мапа: ключ - ссылка на слово, значение - частота
+    std::map<int, std::map<std::string_view, double>> document_to_word_freqs_;
 
     bool IsStopWord(const std::string& word) const;
     
@@ -167,3 +179,33 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
 
     return matched_documents;
 }
+
+#if 0
+template <typename ExecutionPolicy>
+void SearchServer::RemoveDocument(ExecutionPolicy&& policy, int document_id) {
+    // есть ли такой документ?
+    auto it = document_to_word_freqs_.find(document_id);
+
+    // если есть
+    if(it != document_to_word_freqs_.end()) {
+        // удаляем документ с document_id из всех приватных структур
+        std::for_each(policy, it->second.begin(), it->second.end(),
+            [this, document_id](std::pair<const std::string_view, double>& pair_word_freq) {
+                // превращаем string_view в string
+                std::string word = static_cast<std::string>(pair_word_freq.first);
+                word_to_document_freqs_.at(word).erase(document_id);
+                // если по этому слову нет записей
+                if(word_to_document_freqs_.at(word).empty()) {
+                    // удаляем запись
+                    word_to_document_freqs_.erase(word);
+                } });
+
+        documents_.erase(document_id);
+        documents_id_.erase(find(policy, documents_id_.begin(), documents_id_.end(), document_id));
+        document_to_word_freqs_.erase(document_id);
+
+        // удаляем документ с document_id из всех публичных структур
+        document_to_set_words.erase(document_id);
+    }
+}
+#endif
