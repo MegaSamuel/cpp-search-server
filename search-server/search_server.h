@@ -74,26 +74,26 @@ private:
     // мапа: ключ - id документа, значение - мапа: ключ - слово, значение - частота
     std::map<int, std::map<std::string, double>> document_to_word_freqs_;
 
-    bool IsStopWord(const std::string& word) const;
+    bool IsStopWord(const std::string_view& word) const;
     
     std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const;
     
     static int ComputeAverageRating(const std::vector<int>& ratings);
     
     struct QueryWord {
-        std::string data;
+        std::string_view data;
         bool is_minus;
         bool is_stop;
     };
     
-    QueryWord ParseQueryWord(std::string text) const;
+    QueryWord ParseQueryWord(std::string_view text) const;
     
     struct Query {
-        std::set<std::string> plus_words;
-        std::set<std::string> minus_words;
+        std::set<std::string_view> plus_words;
+        std::set<std::string_view> minus_words;
     };
     
-    Query ParseQuery(const std::string& text) const;
+    Query ParseQuery(std::string_view text) const;
     
     // Existence required
     double ComputeWordInverseDocumentFreq(const std::string& word) const;
@@ -101,7 +101,7 @@ private:
     template <typename DocumentPredicate>
     std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const;
 
-    static bool IsValidWord(const std::string& word);
+    static bool IsValidWord(std::string_view word);
 };
 
 template <typename StringCollection>
@@ -142,12 +142,13 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& query, DocumentPredicate document_predicate) const {
     std::map<int, double> document_to_relevance;
-    for(const std::string& word : query.plus_words) {
-        if(word_to_document_freqs_.count(word) == 0) {
+    for(const std::string_view& word : query.plus_words) {
+        std::string str{word};
+        if(word_to_document_freqs_.count(str) == 0) {
             continue;
         }
-        const double inverse_document_freq = SearchServer::ComputeWordInverseDocumentFreq(word);
-        for(const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
+        const double inverse_document_freq = SearchServer::ComputeWordInverseDocumentFreq(str);
+        for(const auto [document_id, term_freq] : word_to_document_freqs_.at(str)) {
             const auto& document_data = documents_.at(document_id);
             if(document_predicate(document_id, document_data.status, document_data.rating)) {
                 document_to_relevance[document_id] += term_freq * inverse_document_freq;
@@ -155,11 +156,12 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
         }
     }
         
-    for(const std::string& word : query.minus_words) {
-        if(word_to_document_freqs_.count(word) == 0) {
+    for(const std::string_view& word : query.minus_words) {
+        std::string str{word};
+        if(word_to_document_freqs_.count(str) == 0) {
             continue;
         }
-        for(const auto [document_id, _] : word_to_document_freqs_.at(word)) {
+        for(const auto [document_id, _] : word_to_document_freqs_.at(str)) {
             (void)_; // убираем предупреждение об неиспользуемой переменной
             document_to_relevance.erase(document_id);
         }
@@ -223,7 +225,31 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
 	}
 
     if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
-        return MatchDocument(raw_query, document_id);
+        const Query query = ParseQuery(raw_query);
+
+        // ссылка на мапу
+        const auto& map_word_freq = document_to_word_freqs_.at(document_id);
+
+        // проход по минус словам
+        if(any_of(std::execution::par, query.minus_words.begin(), query.minus_words.end(),
+            [this, &map_word_freq](const std::string_view& word) {
+                return 0 != map_word_freq.count(static_cast<std::string>(word)); })) {
+            return {std::vector<std::string>{}, documents_.at(document_id).status};
+        }
+
+        std::vector<std::string> matched_words;
+        matched_words.reserve(query.plus_words.size());
+
+        // проход по плюс словам
+        std::for_each(std::execution::par, query.plus_words.begin(), query.plus_words.end(),
+            [this, &map_word_freq, &matched_words](const std::string_view& word) {
+                std::string str{word};
+                if(map_word_freq.count(str)) {
+                    matched_words.push_back(str);
+                }
+            });
+
+        return {matched_words, documents_.at(document_id).status};
     }
 
     return {std::vector<std::string>{}, documents_.at(document_id).status};

@@ -12,8 +12,8 @@ SearchServer::SearchServer(const string& text) {
     if(!IsValidWord(text))
         throw invalid_argument("Forbidden symbol is detected in stop-words"s);
 
-    for(const string& word : SplitIntoWords(text)) {
-        stop_words_.insert(word);
+    for(const string_view word : SplitIntoWords(text)) {
+        stop_words_.insert(static_cast<string>(word));
     }
 }
 
@@ -110,41 +110,42 @@ tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& 
     const Query query = ParseQuery(raw_query);
 
     vector<string> matched_words;
+    matched_words.reserve(query.plus_words.size());
 
-    for(const string& word : query.plus_words) {
-        if(word_to_document_freqs_.count(word) == 0) {
+    // проход по плюс словам
+    for(const string_view& word : query.plus_words) {
+        string str{word};
+        if(word_to_document_freqs_.count(str) == 0) {
             continue;
         }
-        if(word_to_document_freqs_.at(word).count(document_id)) {
-            matched_words.push_back(word);
+        if(word_to_document_freqs_.at(str).count(document_id)) {
+            matched_words.push_back(str);
         }
     }
 
-    for(const string& word : query.minus_words) {
-        if(word_to_document_freqs_.count(word) == 0) {
+    // проход по минус словам
+    for(const string_view& word : query.minus_words) {
+        string str{word};
+        if(word_to_document_freqs_.count(str) == 0) {
             continue;
         }
-        if(word_to_document_freqs_.at(word).count(document_id)) {
-            matched_words.clear();
-            break;
+        if(word_to_document_freqs_.at(str).count(document_id)) {
+            return {vector<string>{}, documents_.at(document_id).status};
         }
     }
 
-    tuple<vector<string>, DocumentStatus> result;
-    result = {matched_words, documents_.at(document_id).status};
-
-    return result;
+    return {matched_words, documents_.at(document_id).status};
 }
 
-bool SearchServer::IsStopWord(const string& word) const {
-    return stop_words_.count(word) > 0;
+bool SearchServer::IsStopWord(const string_view& word) const {
+    return stop_words_.count(static_cast<string>(word)) > 0;
 }
     
 vector<string> SearchServer::SplitIntoWordsNoStop(const string& text) const {
     vector<string> words;
-    for (const string& word : SplitIntoWords(text)) {
+    for(const string_view& word : SplitIntoWords(text)) {
         if (!IsStopWord(word)) {
-            words.push_back(word);
+            words.push_back(static_cast<string>(word));
         }
     }
     return words;
@@ -157,34 +158,36 @@ int SearchServer::ComputeAverageRating(const vector<int>& ratings) {
     return accumulate(ratings.begin(), ratings.end(), 0) / static_cast<int>(ratings.size());
 }
     
-SearchServer::QueryWord SearchServer::ParseQueryWord(string text) const {
+SearchServer::QueryWord SearchServer::ParseQueryWord(string_view text) const {
     bool is_minus = false;
 
+    std::string_view word = text;
+
     // Word shouldn't be empty
-    if(text[0] == '-') {
+    if(word[0] == '-') {
         // после '-' нет букв
-        if(1 == text.length())
+        if(1 == word.length())
             throw invalid_argument("Detected no letters after '-' symbol"s);
 
         // несколько подряд символов '-'
-        if('-' == text[1])
-            throw invalid_argument("Detected several '-' symbols in a row in \""s + text + "\""s);
+        if('-' == word[1])
+            throw invalid_argument("Detected several '-' symbols in a row in \""s + static_cast<string>(text) + "\""s);
 
         is_minus = true;
-        text = text.substr(1);
+        word = word.substr(1);
     }
 
     // проверка на наличие спецсимволов
-    if(!IsValidWord(text))
-        throw invalid_argument("Forbidden symbol is detected in \""s + text + "\""s);
+    if(!IsValidWord(word))
+        throw invalid_argument("Forbidden symbol is detected in \""s + static_cast<string>(text) + "\""s);
 
-    return {text, is_minus, IsStopWord(text)};
+    return {word, is_minus, IsStopWord(word)};
 }
     
-SearchServer::Query SearchServer::ParseQuery(const string& text) const {
+SearchServer::Query SearchServer::ParseQuery(string_view text) const {
     SearchServer::Query query;
 
-    for(const string& word : SplitIntoWords(text)) {
+    for(const string_view& word : SplitIntoWords(text)) {
         const SearchServer::QueryWord query_word = ParseQueryWord(word);
         if(!query_word.is_stop) {
             query_word.is_minus ? 
@@ -201,7 +204,7 @@ double SearchServer::ComputeWordInverseDocumentFreq(const string& word) const {
     return log(GetDocumentCount() * 1.0 / word_to_document_freqs_.at(word).size());
 }
 
-bool SearchServer::IsValidWord(const string& word) {
+bool SearchServer::IsValidWord(string_view word) {
     // A valid word must not contain special characters
     return none_of(word.begin(), word.end(), [](char c) {return c >= '\0' && c < ' ';});
 }
