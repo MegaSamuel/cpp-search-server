@@ -50,6 +50,9 @@ public:
  
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
+    template <typename ExecutionPolicy>
+    std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(ExecutionPolicy, const std::string& raw_query, int document_id) const;
+
     // мапа: ключ - id документа, значение - множество слов
     // need for RemoveDuplicates()
     std::map<int, std::set<std::string>> document_to_set_words;
@@ -211,4 +214,17 @@ void SearchServer::RemoveDocument(ExecutionPolicy, int document_id) {
         // удаляем документ с document_id из всех публичных структур
         // document_to_set_words.erase(document_id);
     }
+}
+
+template <typename ExecutionPolicy>
+std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument(ExecutionPolicy, const std::string& raw_query, int document_id) const {
+	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
+        return MatchDocument(raw_query, document_id);
+	}
+
+    if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
+        return MatchDocument(raw_query, document_id);
+    }
+
+    return {std::vector<std::string>{}, documents_.at(document_id).status};
 }
