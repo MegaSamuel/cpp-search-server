@@ -1,7 +1,6 @@
 #pragma once
 
 #include <execution>
-//#include <iostream> // for debug print
 #include <string>
 #include <string_view>
 #include <algorithm>
@@ -177,54 +176,15 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
 
 template <typename ExecutionPolicy>
 void SearchServer::RemoveDocument(ExecutionPolicy, int document_id) {
-
-    //std::cout << "mark 1\n";
-
 	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
-        //std::cout << "mark 2\n";
         RemoveDocument(document_id);
-        // // есть ли такой документ?
-        // auto it_document_id = find(std::execution::seq, documents_id_.begin(), documents_id_.end(), document_id);
-        // if(it_document_id == documents_id_.end()) {
-        //     return;
-        // }
-
-        // // ссылка на мапу
-        // const auto& map_word_freq = document_to_word_freqs_.at(document_id);
-    
-        // // вспомогательный вектор указателей на слова
-        // std::vector<const std::string*> vct_words_ptr(map_word_freq.size());
-    
-        // // заполняем вектор
-        // std::transform(std::execution::seq, map_word_freq.begin(), map_word_freq.end(), vct_words_ptr.begin(),
-        //     [](const auto& pair_word_freq) {
-        //         return &pair_word_freq.first;
-        //     });
-
-        // // удаляем документ с document_id из всех приватных структур
-        // std::for_each(std::execution::seq, vct_words_ptr.begin(), vct_words_ptr.end(),
-        //     [this, document_id](const std::string* word_ptr) {
-        //         word_to_document_freqs_.at(*word_ptr).erase(document_id);
-        //     });
-
-        // documents_.erase(document_id);
-        // documents_id_.erase(it_document_id);
-        // document_to_word_freqs_.erase(document_id);
-
-        // // удаляем документ с document_id из всех публичных структур
-        // // document_to_set_words.erase(document_id);
 	}
 
     if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
-        //std::cout << "mark 3\n";
         // есть ли такой документ?
         if(!documents_id_.count(document_id)) {
             return;
         }
-        // auto it_document_id = find(std::execution::par, documents_id_.begin(), documents_id_.end(), document_id);
-        // if(it_document_id == documents_id_.end()) {
-        //     return;
-        // }
 
         // ссылка на мапу
         const auto& map_word_freq = document_to_word_freqs_.at(document_id);

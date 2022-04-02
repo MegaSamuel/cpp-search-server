@@ -93,17 +93,6 @@ void SearchServer::RemoveDocument(int document_id) {
         return;
     }
 
-    // auto it_document_id = find(documents_id_.begin(), documents_id_.end(), document_id);
-
-    // if(it_document_id == documents_id_.end()) {
-    //     return;
-    // }
-
-    // удаляем документ с document_id из всех приватных структур
-    // for(auto& [word, map_id_to_freq] : word_to_document_freqs_) {
-    //     map_id_to_freq.erase(document_id);
-    // }
-
     for_each(word_to_document_freqs_.begin(), word_to_document_freqs_.end(),
         [this, document_id](auto& it) {
             it.second.erase(document_id);
