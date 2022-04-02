@@ -1,5 +1,7 @@
 #pragma once
 
+#include <execution>
+//#include <iostream> // for debug print
 #include <string>
 #include <algorithm>
 #include <stdexcept>
@@ -40,6 +42,9 @@ public:
     std::vector<int>::const_iterator end() const;
 
     const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+
+    template <typename ExecutionPolicy>
+    void RemoveDocument(ExecutionPolicy, int document_id);
 
     void RemoveDocument(int document_id);
  
@@ -166,4 +171,44 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
     }
 
     return matched_documents;
+}
+
+template <typename ExecutionPolicy>
+void SearchServer::RemoveDocument(ExecutionPolicy, int document_id) {
+    // есть ли такой документ?
+    if(0 == document_to_word_freqs_.count(document_id)) {
+        return;
+    }
+
+    // для однопоточности - вызываем обычную функцию
+	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
+		SearchServer::RemoveDocument(document_id);
+		return;
+	}
+
+    // для многопоточности - своя реализация
+	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
+        // ссылка на мапу
+        const auto& map_word_freq = document_to_word_freqs_.at(document_id);
+    
+        // вспомогательный вектор слов
+        std::vector<std::string> words(map_word_freq.size());
+    
+        // заполняем вектор
+        std::transform(std::execution::par, map_word_freq.begin(), map_word_freq.end(), words.begin(),
+            [](const auto& item) { return item.first; });
+
+        // удаляем документ с document_id из всех приватных структур
+        std::for_each(std::execution::par, words.begin(), words.end(),
+            [this, document_id](const auto& word) {
+                word_to_document_freqs_.at(word).erase(document_id);
+            });
+
+        documents_.erase(document_id);
+        documents_id_.erase(find(documents_id_.begin(), documents_id_.end(), document_id));
+        document_to_word_freqs_.erase(document_id);
+
+        // удаляем документ с document_id из всех публичных структур
+        document_to_set_words.erase(document_id);
+    }
 }

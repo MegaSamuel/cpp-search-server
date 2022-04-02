@@ -7,10 +7,11 @@
 #include <vector>
 
 //#include "search_server_test.h"
+#include "process_queries.h"
 #include "request_queue.h"
 #include "paginator.h"
 #include "log_duration.h"
-#include "remove_duplicates.h"
+//#include "remove_duplicates.h"
 
 using namespace std;
 

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <string_view>
 
 
 #define PROFILE_CONCAT_INTERNAL(X, Y) X ## Y
@@ -19,6 +20,8 @@ public:
     using Clock = std::chrono::steady_clock;
 
     LogDuration(const std::string& str, std::ostream& output = std::cerr);
+
+    LogDuration(const std::string_view& str, std::ostream& output = std::cerr);
 
     ~LogDuration();
 

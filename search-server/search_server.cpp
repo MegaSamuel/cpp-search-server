@@ -51,7 +51,10 @@ void SearchServer::AddDocument(int document_id, const string& document, Document
 }
 
 vector<Document> SearchServer::FindTopDocuments(const string& raw_query, DocumentStatus status) const {
-    return SearchServer::FindTopDocuments(raw_query, [status](int document_id, DocumentStatus document_status, int rating) { return document_status == status; });
+    return SearchServer::FindTopDocuments(raw_query, 
+        [status]
+        (int document_id, DocumentStatus document_status, int rating) 
+        {(void)document_id; (void)rating; return document_status == status; });
 }
 
 vector<Document> SearchServer::FindTopDocuments(const string& raw_query) const {
@@ -88,7 +91,7 @@ void SearchServer::RemoveDocument(int document_id) {
     // сложность O(w(logN+logW))
 
     // удаляем документ с document_id из всех приватных структур
-    for(auto [word, map_id_to_freq] : word_to_document_freqs_) {
+    for(auto& [word, map_id_to_freq] : word_to_document_freqs_) {
         map_id_to_freq.erase(document_id);
     }
     documents_.erase(document_id);
@@ -180,11 +183,9 @@ SearchServer::Query SearchServer::ParseQuery(const string& text) const {
     for(const string& word : SplitIntoWords(text)) {
         const SearchServer::QueryWord query_word = ParseQueryWord(word);
         if(!query_word.is_stop) {
-            if(query_word.is_minus) {
-                query.minus_words.insert(query_word.data);
-            } else {
-                query.plus_words.insert(query_word.data);
-            }
+            query_word.is_minus ? 
+            query.minus_words.insert(query_word.data) : 
+            query.plus_words.insert(query_word.data);
         }
     }
 
