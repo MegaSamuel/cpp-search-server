@@ -3,6 +3,7 @@
 #include <execution>
 //#include <iostream> // for debug print
 #include <string>
+#include <string_view>
 #include <algorithm>
 #include <stdexcept>
 #include <map>
@@ -37,20 +38,21 @@ public:
 
     int GetDocumentCount() const;
 
-    // константные итераторы на начало и конец вектора с id документов
-    std::vector<int>::const_iterator begin() const;
-    std::vector<int>::const_iterator end() const;
+    // константные итераторы на начало и конец множества с id документов
+    std::set<int>::const_iterator begin() const;
+    std::set<int>::const_iterator end() const;
 
     const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
 
+    void RemoveDocument(int document_id);
+
     template <typename ExecutionPolicy>
     void RemoveDocument(ExecutionPolicy, int document_id);
-
-    void RemoveDocument(int document_id);
  
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
     // мапа: ключ - id документа, значение - множество слов
+    // need for RemoveDuplicates()
     std::map<int, std::set<std::string>> document_to_set_words;
 
 private:
@@ -65,8 +67,8 @@ private:
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
     // мапа: ключ - id документа, значение - данные документа
     std::map<int, DocumentData> documents_;
-    // вектор из id добавленных документов
-    std::vector<int> documents_id_;
+    // множество из id добавленных документов
+    std::set<int> documents_id_;
     // мапа: ключ - id документа, значение - мапа: ключ - слово, значение - частота
     std::map<int, std::map<std::string, double>> document_to_word_freqs_;
 
@@ -175,40 +177,78 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
 
 template <typename ExecutionPolicy>
 void SearchServer::RemoveDocument(ExecutionPolicy, int document_id) {
-    // есть ли такой документ?
-    if(0 == document_to_word_freqs_.count(document_id)) {
-        return;
-    }
 
-    // для однопоточности - вызываем обычную функцию
+    //std::cout << "mark 1\n";
+
 	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
-		SearchServer::RemoveDocument(document_id);
-		return;
+        //std::cout << "mark 2\n";
+        RemoveDocument(document_id);
+        // // есть ли такой документ?
+        // auto it_document_id = find(std::execution::seq, documents_id_.begin(), documents_id_.end(), document_id);
+        // if(it_document_id == documents_id_.end()) {
+        //     return;
+        // }
+
+        // // ссылка на мапу
+        // const auto& map_word_freq = document_to_word_freqs_.at(document_id);
+    
+        // // вспомогательный вектор указателей на слова
+        // std::vector<const std::string*> vct_words_ptr(map_word_freq.size());
+    
+        // // заполняем вектор
+        // std::transform(std::execution::seq, map_word_freq.begin(), map_word_freq.end(), vct_words_ptr.begin(),
+        //     [](const auto& pair_word_freq) {
+        //         return &pair_word_freq.first;
+        //     });
+
+        // // удаляем документ с document_id из всех приватных структур
+        // std::for_each(std::execution::seq, vct_words_ptr.begin(), vct_words_ptr.end(),
+        //     [this, document_id](const std::string* word_ptr) {
+        //         word_to_document_freqs_.at(*word_ptr).erase(document_id);
+        //     });
+
+        // documents_.erase(document_id);
+        // documents_id_.erase(it_document_id);
+        // document_to_word_freqs_.erase(document_id);
+
+        // // удаляем документ с document_id из всех публичных структур
+        // // document_to_set_words.erase(document_id);
 	}
 
-    // для многопоточности - своя реализация
-	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
+    if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
+        //std::cout << "mark 3\n";
+        // есть ли такой документ?
+        if(!documents_id_.count(document_id)) {
+            return;
+        }
+        // auto it_document_id = find(std::execution::par, documents_id_.begin(), documents_id_.end(), document_id);
+        // if(it_document_id == documents_id_.end()) {
+        //     return;
+        // }
+
         // ссылка на мапу
         const auto& map_word_freq = document_to_word_freqs_.at(document_id);
     
         // вспомогательный вектор слов
-        std::vector<std::string> words(map_word_freq.size());
+        std::vector<const std::string*> vct_words(map_word_freq.size());
     
         // заполняем вектор
-        std::transform(std::execution::par, map_word_freq.begin(), map_word_freq.end(), words.begin(),
-            [](const auto& item) { return item.first; });
+        std::transform(std::execution::par, map_word_freq.begin(), map_word_freq.end(), vct_words.begin(),
+            [](const auto& pair_word_freq) {
+                return &pair_word_freq.first;
+            });
 
         // удаляем документ с document_id из всех приватных структур
-        std::for_each(std::execution::par, words.begin(), words.end(),
-            [this, document_id](const auto& word) {
-                word_to_document_freqs_.at(word).erase(document_id);
+        std::for_each(std::execution::par, vct_words.begin(), vct_words.end(),
+            [this, document_id](const std::string* word) {
+                word_to_document_freqs_.at(*word).erase(document_id);
             });
 
         documents_.erase(document_id);
-        documents_id_.erase(find(documents_id_.begin(), documents_id_.end(), document_id));
+        documents_id_.erase(document_id);
         document_to_word_freqs_.erase(document_id);
 
         // удаляем документ с document_id из всех публичных структур
-        document_to_set_words.erase(document_id);
+        // document_to_set_words.erase(document_id);
     }
 }

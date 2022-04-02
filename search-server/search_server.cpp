@@ -30,8 +30,8 @@ void SearchServer::AddDocument(int document_id, const string& document, Document
     if(documents_.count(document_id))
         throw invalid_argument("Document already exists"s);
 
-    // добавляем в вектор id документа
-    documents_id_.push_back(document_id);
+    // добавляем в множество id документа
+    documents_id_.insert(document_id);
 
     const vector<string> words = SplitIntoWordsNoStop(document);
     const double inv_word_count = 1.0 / words.size();
@@ -43,9 +43,9 @@ void SearchServer::AddDocument(int document_id, const string& document, Document
     }
 
     // формируем мапу с множеством по id
-    for(const string& word : words) {
-        document_to_set_words[document_id].insert(word);
-    }
+    // for(const string& word : words) {
+    //     document_to_set_words[document_id].insert(word);
+    // }
 
     documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
 }
@@ -65,12 +65,12 @@ int SearchServer::GetDocumentCount() const {
     return documents_.size();
 }
 
-std::vector<int>::const_iterator SearchServer::begin() const {
+std::set<int>::const_iterator SearchServer::begin() const {
     // константная сложность
     return documents_id_.begin();
 }
 
-std::vector<int>::const_iterator SearchServer::end() const {
+std::set<int>::const_iterator SearchServer::end() const {
     // константная сложность
     return documents_id_.end();
 }
@@ -88,18 +88,33 @@ const map<string, double>& SearchServer::GetWordFrequencies(int document_id) con
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-    // сложность O(w(logN+logW))
+    // есть ли такой документ?
+    if(!documents_id_.count(document_id)) {
+        return;
+    }
+
+    // auto it_document_id = find(documents_id_.begin(), documents_id_.end(), document_id);
+
+    // if(it_document_id == documents_id_.end()) {
+    //     return;
+    // }
 
     // удаляем документ с document_id из всех приватных структур
-    for(auto& [word, map_id_to_freq] : word_to_document_freqs_) {
-        map_id_to_freq.erase(document_id);
-    }
+    // for(auto& [word, map_id_to_freq] : word_to_document_freqs_) {
+    //     map_id_to_freq.erase(document_id);
+    // }
+
+    for_each(word_to_document_freqs_.begin(), word_to_document_freqs_.end(),
+        [this, document_id](auto& it) {
+            it.second.erase(document_id);
+        });
+
     documents_.erase(document_id);
-    documents_id_.erase(find(documents_id_.begin(), documents_id_.end(), document_id));
+    documents_id_.erase(document_id);
     document_to_word_freqs_.erase(document_id);
 
     // удаляем документ с document_id из всех публичных структур
-    document_to_set_words.erase(document_id);
+    // document_to_set_words.erase(document_id);
 }
 
 tuple<vector<string>, DocumentStatus> SearchServer::MatchDocument(const string& raw_query, int document_id) const {
