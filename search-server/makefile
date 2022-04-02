@@ -14,7 +14,7 @@ $(PRJNAME): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
 
 .cpp.o:
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) -O2 $< -o $@
 
 clean:
 	$(CMD_DELETE) $(OBJECTS)
