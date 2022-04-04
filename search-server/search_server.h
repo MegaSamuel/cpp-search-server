@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <map>
 #include <set>
+#include <unordered_set>
 
 #include "document.h"
 #include "string_processing.h"
@@ -22,7 +23,7 @@ public:
 
     explicit SearchServer(const std::string& text) : SearchServer(SplitIntoWords(text)) {};
 
-    explicit SearchServer(const std::string_view text) : SearchServer(SplitIntoWords_v(text)) {};
+    explicit SearchServer(const std::string_view text) : SearchServer(SplitIntoWords(text)) {};
 
     template <typename StringCollection>
     explicit SearchServer(const StringCollection& stop_words);
@@ -42,7 +43,7 @@ public:
     std::set<int>::const_iterator begin() const;
     std::set<int>::const_iterator end() const;
 
-    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+    const std::map<std::string_view, double>& GetWordFrequencies(int document_id) const;
 
     void RemoveDocument(int document_id);
 
@@ -60,20 +61,21 @@ public:
 
 private:
     struct DocumentData {
-        int rating;
-        DocumentStatus status;
+        int rating; // рейтинг
+        DocumentStatus status; // статус
+        std::string text; // текст
     };
     
     // множество стоп-слов
     std::set<std::string, std::less<>> stop_words_;
-    // мапа: ключ - слово, значение - мапа: ключ - id документа, значение - частота
-    std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    // мапа: ключ - ссылка на слово, значение - мапа: ключ - id документа, значение - частота
+    std::map<std::string_view, std::map<int, double>> word_to_document_freqs_;
     // мапа: ключ - id документа, значение - данные документа
     std::map<int, DocumentData> documents_;
     // множество из id добавленных документов
     std::set<int> documents_id_;
-    // мапа: ключ - id документа, значение - мапа: ключ - слово, значение - частота
-    std::map<int, std::map<std::string, double>> document_to_word_freqs_;
+    // мапа: ключ - id документа, значение - мапа: ключ - ссылка на слово, значение - частота
+    std::map<int, std::map<std::string_view, double>> document_to_word_freqs_;
 
     bool IsStopWord(const std::string_view word) const;
     
@@ -82,23 +84,24 @@ private:
     static int ComputeAverageRating(const std::vector<int>& ratings);
     
     struct QueryWord {
-        std::string data;
+        std::string_view data;
         bool is_minus;
         bool is_stop;
     };
     
-    QueryWord ParseQueryWord(std::string text) const;
+    QueryWord ParseQueryWord(const std::string_view text) const;
     
     struct Query {
-        std::set<std::string, std::less<>> plus_words;
-        std::set<std::string, std::less<>> minus_words;
+        // std::vector<std::string_view> plus_words;
+        // std::vector<std::string_view> minus_words;
+        std::unordered_set<std::string_view> plus_words;
+        std::unordered_set<std::string_view> minus_words;
     };
     
-    Query ParseQuery(const std::string& text) const;
-    Query ParseQuery_v(const std::string& text) const;
+    Query ParseQuery(const std::string_view text) const;
 
     // Existence required
-    double ComputeWordInverseDocumentFreq(const std::string& word) const;
+    double ComputeWordInverseDocumentFreq(const std::string_view word) const;
 
     template <typename DocumentPredicate>
     std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const;
@@ -108,21 +111,21 @@ private:
 
 template <typename StringCollection>
 SearchServer::SearchServer(const StringCollection& stop_words) {
-    for(auto& it : stop_words) {
+    for(const auto& it : stop_words) {
         // Наличие спецсимволов — то есть символов с кодами в диапазоне от 0 до 31 включительно
         if(!IsValidWord(it))
-            throw std::invalid_argument("Forbidden symbol is detected in stop-word \"" + std::string(it) + "\"");
+            throw std::invalid_argument("Forbidden symbol is detected in stop-word \"" + static_cast<std::string>(it) + "\"");
 
         // если слово it не пустое, то добавляем
         // stop_words_ это множество set, соответственно дубликаты отсеются
         if(!it.empty())
-            stop_words_.insert(std::string(it));
+            stop_words_.insert(static_cast<std::string>(it));
     }
 }
 
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindTopDocuments(const std::string_view raw_query, DocumentPredicate document_predicate) const {
-    const Query query = ParseQuery(std::string(raw_query));
+    const Query query = ParseQuery(raw_query);
 
     std::vector<Document> result = FindAllDocuments(query, document_predicate);
         
@@ -144,13 +147,12 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string_view raw_
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& query, DocumentPredicate document_predicate) const {
     std::map<int, double> document_to_relevance;
-    for(const std::string& word : query.plus_words) {
-        std::string str{word};
-        if(word_to_document_freqs_.count(str) == 0) {
+    for(const std::string_view& word : query.plus_words) {
+        if(word_to_document_freqs_.count(word) == 0) {
             continue;
         }
-        const double inverse_document_freq = SearchServer::ComputeWordInverseDocumentFreq(str);
-        for(const auto [document_id, term_freq] : word_to_document_freqs_.at(str)) {
+        const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
+        for(const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
             const auto& document_data = documents_.at(document_id);
             if(document_predicate(document_id, document_data.status, document_data.rating)) {
                 document_to_relevance[document_id] += term_freq * inverse_document_freq;
@@ -158,12 +160,11 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
         }
     }
         
-    for(const std::string& word : query.minus_words) {
-        std::string str{word};
-        if(word_to_document_freqs_.count(str) == 0) {
+    for(const std::string_view& word : query.minus_words) {
+        if(word_to_document_freqs_.count(word) == 0) {
             continue;
         }
-        for(const auto [document_id, _] : word_to_document_freqs_.at(str)) {
+        for(const auto [document_id, _] : word_to_document_freqs_.at(word)) {
             (void)_; // убираем предупреждение об неиспользуемой переменной
             document_to_relevance.erase(document_id);
         }
@@ -227,28 +228,42 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
 	}
 
     if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
-        const Query query = ParseQuery_v(std::string(raw_query));
+        const Query query = ParseQuery(raw_query);
 
         // ссылка на мапу
         const auto& map_word_freq = document_to_word_freqs_.at(document_id);
 
         // проход по минус словам
         if(any_of(std::execution::par, query.minus_words.begin(), query.minus_words.end(),
-            [this, &map_word_freq](const std::string& word) {
+            [this, &map_word_freq](const std::string_view& word) {
                 return map_word_freq.count(word); })) {
             return {std::vector<std::string_view>{}, documents_.at(document_id).status};
         }
 
+#if 1
         std::vector<std::string_view> matched_words;
         matched_words.reserve(query.plus_words.size());
 
         // проход по плюс словам
         for_each(std::execution::par, query.plus_words.begin(), query.plus_words.end(),
-            [this, &map_word_freq, &matched_words](const std::string& word) {
+            [this, &map_word_freq, &matched_words](const std::string_view& word) {
                 if(map_word_freq.count(word)) {
                     matched_words.push_back(word);
                 }
             });
+#else
+        // вектор максимально возможного размера
+        std::vector<std::string_view> matched_words(query.plus_words.size());
+
+        // проход по плюс словам
+        auto it = copy_if(std::execution::par, query.plus_words.begin(), query.plus_words.end(), matched_words.begin(),
+            [this, &map_word_freq](const std::string_view& word) {
+                return map_word_freq.count(word);
+        });
+ 
+        // отбрасываем лишнее
+        matched_words.resize(distance(matched_words.begin(), it));
+#endif
 
         return {matched_words, documents_.at(document_id).status};
     }

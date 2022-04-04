@@ -1,26 +1,6 @@
 #include "string_processing.h"
 
-std::vector<std::string> SplitIntoWords(const std::string& text) {
-    std::vector<std::string> words;
-    std::string word;
-
-    for(const char c : text) {
-        if(c == ' ') {
-            if(!word.empty()) {
-                // добавляем слово только если оно не пустое
-                words.push_back(word);
-                word = "";
-            }
-        } else {
-            word += c;
-        }
-    }
-    words.push_back(word);
-
-    return words;
-}
-
-std::vector<std::string_view> SplitIntoWords_v(std::string_view text) {
+std::vector<std::string_view> SplitIntoWords(std::string_view text) {
     // реализацию взяли из 7-го спринта
     std::vector<std::string_view> words;
     const int64_t pos_end = text.npos;
