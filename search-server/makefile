@@ -1,5 +1,5 @@
 CC  = g++
-CFLAGS  = -c -std=c++2a -Wall -Wextra -pedantic
+CFLAGS  = -c -std=c++20 -Wall -Wextra -pedantic
 LDFLAGS = 
 SOURCES = $(sort $(patsubst %.cpp,%.o,$(wildcard *.cpp)))
 OBJECTS = $(SOURCES:.cpp=.o)
@@ -14,7 +14,7 @@ $(PRJNAME): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
 
 .cpp.o:
-	$(CC) $(CFLAGS) -O2 $< -o $@
+	$(CC) $(CFLAGS) -O3 $< -o $@
 
 clean:
 	$(CMD_DELETE) $(OBJECTS)

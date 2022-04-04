@@ -2,13 +2,14 @@
 
 #include <execution>
 #include <string>
-#include <string_view>
+//#include <string_view>
 #include <algorithm>
 #include <stdexcept>
 #include <map>
 #include <set>
 
 #include "document.h"
+#include "string_processing.h"
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 
@@ -74,34 +75,40 @@ private:
     // мапа: ключ - id документа, значение - мапа: ключ - слово, значение - частота
     std::map<int, std::map<std::string, double>> document_to_word_freqs_;
 
-    bool IsStopWord(const std::string_view& word) const;
+    bool IsStopWord(const std::string& word) const;
     
     std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const;
     
     static int ComputeAverageRating(const std::vector<int>& ratings);
     
     struct QueryWord {
-        std::string_view data;
+        std::string data;
         bool is_minus;
         bool is_stop;
     };
     
-    QueryWord ParseQueryWord(std::string_view text) const;
+    QueryWord ParseQueryWord(std::string text) const;
     
     struct Query {
-        std::set<std::string_view> plus_words;
-        std::set<std::string_view> minus_words;
+        std::set<std::string> plus_words;
+        std::set<std::string> minus_words;
     };
     
-    Query ParseQuery(std::string_view text) const;
-    
+    Query ParseQuery(const std::string& text) const;
+#if 0
+    template <typename ExecutionPolicy>
+    Query ParseQuery(ExecutionPolicy, const std::string& text) const;
+#else
+    Query ParseQuery_v(const std::string& text) const;
+#endif
+
     // Existence required
     double ComputeWordInverseDocumentFreq(const std::string& word) const;
 
     template <typename DocumentPredicate>
     std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const;
 
-    static bool IsValidWord(std::string_view word);
+    static bool IsValidWord(const std::string& word);
 };
 
 template <typename StringCollection>
@@ -142,7 +149,7 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
 template <typename DocumentPredicate>
 std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& query, DocumentPredicate document_predicate) const {
     std::map<int, double> document_to_relevance;
-    for(const std::string_view& word : query.plus_words) {
+    for(const std::string& word : query.plus_words) {
         std::string str{word};
         if(word_to_document_freqs_.count(str) == 0) {
             continue;
@@ -156,7 +163,7 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
         }
     }
         
-    for(const std::string_view& word : query.minus_words) {
+    for(const std::string& word : query.minus_words) {
         std::string str{word};
         if(word_to_document_freqs_.count(str) == 0) {
             continue;
@@ -198,13 +205,13 @@ void SearchServer::RemoveDocument(ExecutionPolicy, int document_id) {
         std::vector<const std::string*> vct_words(map_word_freq.size());
     
         // заполняем вектор
-        std::transform(std::execution::par, map_word_freq.begin(), map_word_freq.end(), vct_words.begin(),
+        transform(std::execution::par, map_word_freq.begin(), map_word_freq.end(), vct_words.begin(),
             [](const auto& pair_word_freq) {
                 return &pair_word_freq.first;
             });
 
         // удаляем документ с document_id из всех приватных структур
-        std::for_each(std::execution::par, vct_words.begin(), vct_words.end(),
+        for_each(std::execution::par, vct_words.begin(), vct_words.end(),
             [this, document_id](const std::string* word) {
                 word_to_document_freqs_.at(*word).erase(document_id);
             });
@@ -225,15 +232,15 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
 	}
 
     if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
-        const Query query = ParseQuery(raw_query);
+        const Query query = ParseQuery_v(raw_query);
 
         // ссылка на мапу
         const auto& map_word_freq = document_to_word_freqs_.at(document_id);
 
         // проход по минус словам
         if(any_of(std::execution::par, query.minus_words.begin(), query.minus_words.end(),
-            [this, &map_word_freq](const std::string_view& word) {
-                return 0 != map_word_freq.count(static_cast<std::string>(word)); })) {
+            [this, &map_word_freq](const std::string& word) {
+                return map_word_freq.count(word); })) {
             return {std::vector<std::string>{}, documents_.at(document_id).status};
         }
 
@@ -241,11 +248,10 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
         matched_words.reserve(query.plus_words.size());
 
         // проход по плюс словам
-        std::for_each(std::execution::par, query.plus_words.begin(), query.plus_words.end(),
-            [this, &map_word_freq, &matched_words](const std::string_view& word) {
-                std::string str{word};
-                if(map_word_freq.count(str)) {
-                    matched_words.push_back(str);
+        for_each(std::execution::par, query.plus_words.begin(), query.plus_words.end(),
+            [this, &map_word_freq, &matched_words](const std::string& word) {
+                if(map_word_freq.count(word)) {
+                    matched_words.push_back(word);
                 }
             });
 
@@ -254,3 +260,37 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
 
     return {std::vector<std::string>{}, documents_.at(document_id).status};
 }
+
+#if 0
+template <typename ExecutionPolicy>
+SearchServer::Query SearchServer::ParseQuery(ExecutionPolicy, const std::string& text) const {
+	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
+        return ParseQuery(text);
+	}
+
+    if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
+        Query query;
+
+        std::vector<std::string> words = SplitIntoWords(text);
+
+        std::vector<QueryWord> query_words(words.size());
+
+        transform(std::execution::par, words.begin(), words.end(), query_words.begin(), 
+            [this](const std::string& word) {
+                return ParseQueryWord(word);
+            });
+
+        for(const QueryWord& query_word : query_words) {
+            if(!query_word.is_stop) {
+                query_word.is_minus ? 
+                query.minus_words.insert(query_word.data) : 
+                query.plus_words.insert(query_word.data);
+            }
+        }
+
+        return query;
+    }
+
+    return {};
+}
+#endif
