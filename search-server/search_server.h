@@ -9,7 +9,6 @@
 #include <set>
 
 #include "document.h"
-#include "string_processing.h"
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 
@@ -22,21 +21,19 @@ public:
 
     explicit SearchServer() = default;
 
-    explicit SearchServer(const std::string& text) : SearchServer(SplitIntoWords(text)) {};
-
-    explicit SearchServer(const std::string_view& text) : SearchServer(SplitIntoWords(text)) {};
+    explicit SearchServer(const std::string& text);
 
     template <typename StringCollection>
     explicit SearchServer(const StringCollection& stop_words);
 
-    void AddDocument(int document_id, const std::string_view& document, DocumentStatus status, const std::vector<int>& ratings);
+    void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
 
     template <typename DocumentPredicate>
-    std::vector<Document> FindTopDocuments(const std::string_view& raw_query, DocumentPredicate document_predicate) const;
+    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const;
 
-    std::vector<Document> FindTopDocuments(const std::string_view& raw_query, DocumentStatus status) const;
+    std::vector<Document> FindTopDocuments(const std::string& raw_query, DocumentStatus status) const;
 
-    std::vector<Document> FindTopDocuments(const std::string_view& raw_query) const;
+    std::vector<Document> FindTopDocuments(const std::string& raw_query) const;
 
     int GetDocumentCount() const;
 
@@ -44,17 +41,17 @@ public:
     std::set<int>::const_iterator begin() const;
     std::set<int>::const_iterator end() const;
 
-    const std::map<std::string_view, double>& GetWordFrequencies(int document_id) const;
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
 
     void RemoveDocument(int document_id);
 
     template <typename ExecutionPolicy>
     void RemoveDocument(ExecutionPolicy, int document_id);
  
-    std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(const std::string_view& raw_query, int document_id) const;
+    std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
     template <typename ExecutionPolicy>
-    std::tuple<std::vector<std::string_view>, DocumentStatus> MatchDocument(ExecutionPolicy, const std::string_view& raw_query, int document_id) const;
+    std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(ExecutionPolicy, const std::string& raw_query, int document_id) const;
 
     // мапа: ключ - id документа, значение - множество слов
     // need for RemoveDuplicates()
@@ -62,25 +59,24 @@ public:
 
 private:
     struct DocumentData {
-        int rating; // рейтинг
-        DocumentStatus status; // статус
-        std::string text; // текст
+        int rating;
+        DocumentStatus status;
     };
     
     // множество стоп-слов
     std::set<std::string> stop_words_;
-    // мапа: ключ - ссылка на слово, значение - мапа: ключ - id документа, значение - частота
-    std::map<std::string_view, std::map<int, double>> word_to_document_freqs_;
+    // мапа: ключ - слово, значение - мапа: ключ - id документа, значение - частота
+    std::map<std::string, std::map<int, double>> word_to_document_freqs_;
     // мапа: ключ - id документа, значение - данные документа
     std::map<int, DocumentData> documents_;
     // множество из id добавленных документов
     std::set<int> documents_id_;
-    // мапа: ключ - id документа, значение - мапа: ключ - ссылка на слово, значение - частота
-    std::map<int, std::map<std::string_view, double>> document_to_word_freqs_;
+    // мапа: ключ - id документа, значение - мапа: ключ - слово, значение - частота
+    std::map<int, std::map<std::string, double>> document_to_word_freqs_;
 
     bool IsStopWord(const std::string_view& word) const;
     
-    std::vector<std::string_view> SplitIntoWordsNoStop(const std::string_view& text) const;
+    std::vector<std::string> SplitIntoWordsNoStop(const std::string& text) const;
     
     static int ComputeAverageRating(const std::vector<int>& ratings);
     
@@ -105,7 +101,7 @@ private:
     template <typename DocumentPredicate>
     std::vector<Document> FindAllDocuments(const Query& query, DocumentPredicate document_predicate) const;
 
-    static bool IsValidWord(const std::string_view& word);
+    static bool IsValidWord(std::string_view word);
 };
 
 template <typename StringCollection>
@@ -113,17 +109,17 @@ SearchServer::SearchServer(const StringCollection& stop_words) {
     for(auto& it : stop_words) {
         // Наличие спецсимволов — то есть символов с кодами в диапазоне от 0 до 31 включительно
         if(!IsValidWord(it))
-            throw std::invalid_argument("Forbidden symbol is detected in stop-word \"" + static_cast<std::string>(it) + "\"");
+            throw std::invalid_argument("Forbidden symbol is detected in stop-word \"" + it + "\"");
 
         // если слово it не пустое, то добавляем
         // stop_words_ это множество set, соответственно дубликаты отсеются
         if(!it.empty())
-            stop_words_.insert(static_cast<std::string>(it));
+            stop_words_.insert(it);
     }
 }
 
 template <typename DocumentPredicate>
-std::vector<Document> SearchServer::FindTopDocuments(const std::string_view& raw_query, DocumentPredicate document_predicate) const {
+std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, DocumentPredicate document_predicate) const {
     const Query query = SearchServer::ParseQuery(raw_query);
 
     std::vector<Document> result = SearchServer::FindAllDocuments(query, document_predicate);
@@ -223,7 +219,7 @@ void SearchServer::RemoveDocument(ExecutionPolicy, int document_id) {
 }
 
 template <typename ExecutionPolicy>
-std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(ExecutionPolicy, const std::string_view& raw_query, int document_id) const {
+std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument(ExecutionPolicy, const std::string& raw_query, int document_id) const {
 	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
         return MatchDocument(raw_query, document_id);
 	}
@@ -238,22 +234,23 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
         if(any_of(std::execution::par, query.minus_words.begin(), query.minus_words.end(),
             [this, &map_word_freq](const std::string_view& word) {
                 return 0 != map_word_freq.count(static_cast<std::string>(word)); })) {
-            return {std::vector<std::string_view>{}, documents_.at(document_id).status};
+            return {std::vector<std::string>{}, documents_.at(document_id).status};
         }
 
-        std::vector<std::string_view> matched_words;
+        std::vector<std::string> matched_words;
         matched_words.reserve(query.plus_words.size());
 
         // проход по плюс словам
         std::for_each(std::execution::par, query.plus_words.begin(), query.plus_words.end(),
             [this, &map_word_freq, &matched_words](const std::string_view& word) {
-                if(map_word_freq.count(word)) {
-                    matched_words.push_back(word);
+                std::string str{word};
+                if(map_word_freq.count(str)) {
+                    matched_words.push_back(str);
                 }
             });
 
         return {matched_words, documents_.at(document_id).status};
     }
 
-    return {std::vector<std::string_view>{}, documents_.at(document_id).status};
+    return {std::vector<std::string>{}, documents_.at(document_id).status};
 }
