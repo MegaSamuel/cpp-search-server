@@ -8,9 +8,6 @@ LogDuration::LogDuration(const std::string_view& str, std::ostream& output) :
     text_(str), output_(output) {
 }
 
-LogDuration::LogDuration(const std::string_view& str, std::ostream& output) : text_(str), output_(output) {
-}
-
 LogDuration::~LogDuration() {
     using namespace std::chrono;
     using namespace std::literals;
