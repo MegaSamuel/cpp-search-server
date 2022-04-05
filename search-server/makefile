@@ -1,5 +1,5 @@
 CC  = g++
-CFLAGS  = -c -std=c++2a -Wall -Wextra -pedantic
+CFLAGS  = -c -O -std=c++17 -Wall -Wextra -pedantic
 LDFLAGS = 
 SOURCES = $(sort $(patsubst %.cpp,%.o,$(wildcard *.cpp)))
 OBJECTS = $(SOURCES:.cpp=.o)
