@@ -92,13 +92,16 @@ private:
     QueryWord ParseQueryWord(const std::string_view text) const;
     
     struct Query {
-        // std::vector<std::string_view> plus_words;
-        // std::vector<std::string_view> minus_words;
-        std::unordered_set<std::string_view> plus_words;
-        std::unordered_set<std::string_view> minus_words;
+        std::vector<std::string_view> plus_words;
+        std::vector<std::string_view> minus_words;
+        // std::unordered_set<std::string_view> plus_words;
+        // std::unordered_set<std::string_view> minus_words;
     };
     
     Query ParseQuery(const std::string_view text) const;
+
+    template <typename ExecutionPolicy>
+    Query ParseQuery(ExecutionPolicy, const std::string_view text) const;
 
     // Existence required
     double ComputeWordInverseDocumentFreq(const std::string_view word) const;
@@ -228,7 +231,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
 	}
 
     if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
-        const Query query = ParseQuery(raw_query);
+        const Query query = ParseQuery(std::execution::par, raw_query);
 
         // ссылка на мапу
         const auto& map_word_freq = document_to_word_freqs_.at(document_id);
@@ -240,18 +243,6 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
             return {std::vector<std::string_view>{}, documents_.at(document_id).status};
         }
 
-#if 1
-        std::vector<std::string_view> matched_words;
-        matched_words.reserve(query.plus_words.size());
-
-        // проход по плюс словам
-        for_each(std::execution::par, query.plus_words.begin(), query.plus_words.end(),
-            [this, &map_word_freq, &matched_words](const std::string_view& word) {
-                if(map_word_freq.count(word)) {
-                    matched_words.push_back(word);
-                }
-            });
-#else
         // вектор максимально возможного размера
         std::vector<std::string_view> matched_words(query.plus_words.size());
 
@@ -261,12 +252,38 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
                 return map_word_freq.count(word);
         });
  
-        // отбрасываем лишнее
-        matched_words.resize(distance(matched_words.begin(), it));
-#endif
+        // слова лежат в векторе - сортируем
+        std::sort(std::execution::par, matched_words.begin(), matched_words.end());
+ 
+        // оставляем только уникальные слова
+        auto iit = std::unique(std::execution::par, matched_words.begin(), matched_words.end());
 
-        return {matched_words, documents_.at(document_id).status};
+        return {{matched_words.begin(), next(iit, -1)}, documents_.at(document_id).status};
     }
 
     return {std::vector<std::string_view>{}, documents_.at(document_id).status};
+}
+
+template <typename ExecutionPolicy>
+SearchServer::Query SearchServer::ParseQuery(ExecutionPolicy, const std::string_view text) const {
+	if constexpr (std::is_same_v<ExecutionPolicy, std::execution::sequenced_policy>) {
+        return ParseQuery(text);
+	}
+
+    if constexpr (std::is_same_v<ExecutionPolicy, std::execution::parallel_policy>) {
+        Query query;
+
+        for(const std::string_view& word : SplitIntoWords(text)) {
+            const QueryWord query_word = ParseQueryWord(word);
+            if(!query_word.is_stop) {
+                query_word.is_minus ? 
+                query.minus_words.push_back(query_word.data) : 
+                query.plus_words.push_back(query_word.data);
+            }
+        }
+
+        return query;
+    }
+
+    return {};
 }

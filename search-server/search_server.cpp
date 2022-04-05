@@ -153,53 +153,53 @@ SearchServer::QueryWord SearchServer::ParseQueryWord(const string_view text) con
     string_view word = text;
 
     // Word shouldn't be empty
-    if(text[0] == '-') {
+    if(word[0] == '-') {
         // после '-' нет букв
-        if(1 == text.length())
+        if(1 == word.length())
             throw invalid_argument("Detected no letters after '-' symbol"s);
 
         // несколько подряд символов '-'
-        if('-' == text[1])
+        if('-' == word[1])
             throw invalid_argument("Detected several '-' symbols in a row in \""s + static_cast<string>(text) + "\""s);
 
         is_minus = true;
-        word = text.substr(1);
+        word = word.substr(1);
     }
 
     // проверка на наличие спецсимволов
-    if(!IsValidWord(text))
+    if(!IsValidWord(word))
         throw invalid_argument("Forbidden symbol is detected in \""s + static_cast<string>(text) + "\""s);
 
     return {word, is_minus, IsStopWord(word)};
 }
     
 SearchServer::Query SearchServer::ParseQuery(const string_view text) const {
-    SearchServer::Query query;
+    Query query;
 
     for(const string_view& word : SplitIntoWords(text)) {
-        const SearchServer::QueryWord query_word = ParseQueryWord(word);
+        const QueryWord query_word = ParseQueryWord(word);
         if(!query_word.is_stop) {
             query_word.is_minus ? 
-            // query.minus_words.push_back(query_word.data) : 
-            // query.plus_words.push_back(query_word.data);
-            query.minus_words.insert(query_word.data) : 
-            query.plus_words.insert(query_word.data);
+            query.minus_words.push_back(query_word.data) : 
+            query.plus_words.push_back(query_word.data);
+            // query.minus_words.insert(query_word.data) : 
+            // query.plus_words.insert(query_word.data);
         }
     }
 
-    // // слова лежат в векторе - сортируем
-    // sort(query.plus_words.begin(), query.plus_words.end());
-    // sort(query.minus_words.begin(), query.minus_words.end());
+    // слова лежат в векторе - сортируем
+    sort(query.plus_words.begin(), query.plus_words.end());
+    sort(query.minus_words.begin(), query.minus_words.end());
 
-    // // оставляем только уникальные слова
-    // auto it = unique(query.plus_words.begin(), query.plus_words.end());
-    // // лишнее отрезаем
-    // query.plus_words.resize(distance(query.plus_words.begin(), it));
+    // оставляем только уникальные слова
+    auto it = unique(query.plus_words.begin(), query.plus_words.end());
+    // лишнее отрезаем
+    query.plus_words.resize(distance(query.plus_words.begin(), it));
 
-    // // оставляем только уникальные слова
-    // it = unique(query.minus_words.begin(), query.minus_words.end());
-    // // лишнее отрезаем
-    // query.minus_words.resize(distance(query.minus_words.begin(), it));
+    // оставляем только уникальные слова
+    it = unique(query.minus_words.begin(), query.minus_words.end());
+    // лишнее отрезаем
+    query.minus_words.resize(distance(query.minus_words.begin(), it));
 
     return query;
 }
