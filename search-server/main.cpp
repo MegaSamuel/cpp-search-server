@@ -115,7 +115,7 @@ int main() {
 
     cout << "Even ids:"s << endl;
     // параллельная версия
-    for (const Document& document : search_server.FindTopDocuments(execution::par, "curly nasty cat"s, [](int document_id, DocumentStatus status, int rating) { return document_id % 2 == 0; })) {
+    for (const Document& document : search_server.FindTopDocuments(execution::par, "curly nasty cat"s, [](int document_id, DocumentStatus status, int rating) { (void)status; (void)rating; return document_id % 2 == 0; })) {
         PrintDocument(document);
     }
 }
