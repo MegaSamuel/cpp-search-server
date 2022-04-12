@@ -8,6 +8,8 @@
 
 #include "document.h"
 #include "string_processing.h"
+#include "concurrent_map.h"
+#include "log_duration.h"
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 
@@ -142,10 +144,10 @@ std::vector<Document> SearchServer::FindTopDocuments(ExecutionPolicy&& policy, c
 	}
 
     if constexpr (std::is_same_v<std::decay_t<ExecutionPolicy>, std::execution::parallel_policy>) {
-        const Query query = ParseQuery(policy, raw_query);
+        const Query query = ParseQuery(raw_query);
 
         std::vector<Document> result = FindAllDocuments(policy, query, document_predicate);
-        
+
         sort(policy, result.begin(), result.end(),
              [](const Document& lhs, const Document& rhs) {
                 if(std::abs(lhs.relevance - rhs.relevance) < EPSILON_DOUBLE) {
@@ -205,34 +207,71 @@ std::vector<Document> SearchServer::FindAllDocuments(ExecutionPolicy&& policy, c
 	}
 
     if constexpr (std::is_same_v<std::decay_t<ExecutionPolicy>, std::execution::parallel_policy>) {
-        (void)policy;
+        //std::map<int, double> document_to_relevance;
+        LOG_DURATION("mark1");
+        ConcurrentMap<int, double> concurrent_document_to_relevance;
 
-        std::map<int, double> document_to_relevance;
-        for(const std::string_view& word : query.plus_words) {
-            if(word_to_document_freqs_.count(word) == 0) {
-                continue;
-            }
-            const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
-            for(const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                const auto& document_data = documents_.at(document_id);
-                if(document_predicate(document_id, document_data.status, document_data.rating)) {
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
+        // for(const std::string_view& word : query.plus_words) {
+        //     if(word_to_document_freqs_.count(word) == 0) {
+        //         continue;
+        //     }
+        //     const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
+        //     for(const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
+        //         const auto& document_data = documents_.at(document_id);
+        //         if(document_predicate(document_id, document_data.status, document_data.rating)) {
+        //             document_to_relevance[document_id] += term_freq * inverse_document_freq;
+        //         }
+        //     }
+        // }
+
+        // проход по плюс словам
+        for_each(policy, query.plus_words.begin(), query.plus_words.end(),
+            [this, &document_predicate, &concurrent_document_to_relevance](const std::string_view& word) {
+                if(word_to_document_freqs_.count(word) == 0) {
+                    return;
                 }
-            }
-        }
-        
-        for(const std::string_view& word : query.minus_words) {
-            if(word_to_document_freqs_.count(word) == 0) {
-                continue;
-            }
-            for(const auto [document_id, _] : word_to_document_freqs_.at(word)) {
-                (void)_; // убираем предупреждение об неиспользуемой переменной
-                document_to_relevance.erase(document_id);
-            }
-        }
+                const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
+                for(const auto& [document_id, term_freq] : word_to_document_freqs_.at(word)) {
+                    const auto& document_data = documents_.at(document_id);
+                    if(document_predicate(document_id, document_data.status, document_data.rating)) {
+                        concurrent_document_to_relevance[document_id].ref_to_value += term_freq * inverse_document_freq;
+                    }
+                }
+            });
 
+        // for(const std::string_view& word : query.minus_words) {
+        //     if(word_to_document_freqs_.count(word) == 0) {
+        //         continue;
+        //     }
+        //     for(const auto [document_id, _] : word_to_document_freqs_.at(word)) {
+        //         (void)_; // убираем предупреждение об неиспользуемой переменной
+        //         document_to_relevance.erase(document_id);
+        //     }
+        // }
+        LOG_DURATION("mark2");
+        std::map<int, double> document_to_relevance;
+
+        document_to_relevance = concurrent_document_to_relevance.BuildOrdinaryMap();
+
+        std::mutex erase_mutex; //TODO надо ли это тут??
+
+        // проход по минус словам
+        for_each(policy, query.minus_words.begin(), query.minus_words.end(),
+            [this, &erase_mutex, &document_to_relevance](const std::string_view& word) {
+                if(word_to_document_freqs_.count(word) == 0) {
+                    return;
+                }
+                for(const auto& [document_id, _] : word_to_document_freqs_.at(word)) {
+                    (void)_;
+                    //std::lock_guard guard(erase_mutex);
+                    document_to_relevance.erase(document_id);
+                }
+            });
+
+        LOG_DURATION("mark3");
         std::vector<Document> matched_documents;
-        for(const auto [document_id, relevance] : document_to_relevance) {
+        matched_documents.reserve(document_to_relevance.size());
+        for(const auto& [document_id, relevance] : document_to_relevance) {
             matched_documents.push_back({
                 document_id,
                 relevance,
@@ -261,7 +300,7 @@ std::vector<Document> SearchServer::FindAllDocuments(const SearchServer::Query& 
             }
         }
     }
-        
+
     for(const std::string_view& word : query.minus_words) {
         if(word_to_document_freqs_.count(word) == 0) {
             continue;

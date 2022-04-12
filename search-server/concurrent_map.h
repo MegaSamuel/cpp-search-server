@@ -25,6 +25,10 @@ public:
     explicit ConcurrentMap(size_t bucket_count) : m_vct_items(bucket_count) {
     }
 
+    // ! используем простое число для количества элементов
+    explicit ConcurrentMap() : ConcurrentMap(31) {
+    }
+
     Access operator[](const Key& key) {
         // остаток от деления ключа на размер дает индекс
         auto& item = m_vct_items[static_cast<uint64_t>(key) % m_vct_items.size()];

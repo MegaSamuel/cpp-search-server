@@ -2,11 +2,11 @@
 
 #include <chrono>
 #include <iostream>
-#include <string>
+//#include <string>
 #include <string_view>
 
 
-#define PROFILE_CONCAT_INTERNAL(X, Y) X ## Y
+#define PROFILE_CONCAT_INTERNAL(X, Y) X##Y
 #define PROFILE_CONCAT(X, Y) PROFILE_CONCAT_INTERNAL(X, Y)
 #define UNIQUE_VAR_NAME_PROFILE PROFILE_CONCAT(profileGuard, __LINE__)
 #define LOG_DURATION(x) LogDuration UNIQUE_VAR_NAME_PROFILE(x)
@@ -19,9 +19,9 @@ public:
     // с помощью using для удобства
     using Clock = std::chrono::steady_clock;
 
-    LogDuration(const std::string& str, std::ostream& output = std::cerr);
+    //LogDuration(const std::string& str, std::ostream& output = std::cerr);
 
-    LogDuration(const std::string_view& str, std::ostream& output = std::cerr);
+    LogDuration(const std::string_view str, std::ostream& output = std::cerr);
 
     ~LogDuration();
 
