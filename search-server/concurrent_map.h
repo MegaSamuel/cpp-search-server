@@ -20,6 +20,12 @@ public:
         std::lock_guard<std::mutex> guard; // защита от одновременного доступа
 
         Value& ref_to_value; // ссылка на значение
+
+        // перегрузка оператора +=
+        Value& operator+=(Value value) {
+            ref_to_value += value;
+            return ref_to_value;
+        }
     };
 
     explicit ConcurrentMap(size_t bucket_count) : m_vct_items(bucket_count) {
@@ -31,11 +37,20 @@ public:
 
     Access operator[](const Key& key) {
         // остаток от деления ключа на размер дает индекс
-        auto& item = m_vct_items[static_cast<uint64_t>(key) % m_vct_items.size()];
-
+        uint64_t index = static_cast<uint64_t>(key) % m_vct_items.size();
+        auto& item = m_vct_items[index];
         return {std::lock_guard<std::mutex>(item.mutex), item.map[key]};
     }
 
+    // удаляем значение по ключу
+    void erase(const Key& key) {
+        uint64_t index = static_cast<uint64_t>(key) % m_vct_items.size();
+        auto& item = m_vct_items[index];
+        std::lock_guard<std::mutex> guard(item.mutex);
+        item.map.erase(key);
+    }
+
+    // строим общую мапу
     std::map<Key, Value> BuildOrdinaryMap() {
         std::map<Key, Value> result;
 
