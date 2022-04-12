@@ -42,14 +42,14 @@ void SearchServer::AddDocument(int document_id, const string_view document, Docu
 }
 
 vector<Document> SearchServer::FindTopDocuments(const string_view raw_query, DocumentStatus status) const {
-    return SearchServer::FindTopDocuments(raw_query, 
+    return FindTopDocuments(raw_query, 
         [status]
         (int document_id, DocumentStatus document_status, int rating) 
         {(void)document_id; (void)rating; return document_status == status; });
 }
 
 vector<Document> SearchServer::FindTopDocuments(const string_view raw_query) const {
-    return SearchServer::FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
+    return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
 }
 
 int SearchServer::GetDocumentCount() const {
@@ -182,8 +182,6 @@ SearchServer::Query SearchServer::ParseQuery(const string_view text) const {
             query_word.is_minus ? 
             query.minus_words.push_back(query_word.data) : 
             query.plus_words.push_back(query_word.data);
-            // query.minus_words.insert(query_word.data) : 
-            // query.plus_words.insert(query_word.data);
         }
     }
 
