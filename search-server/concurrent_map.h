@@ -22,7 +22,7 @@ public:
         Value& ref_to_value; // ссылка на значение
 
         // перегрузка оператора +=
-        Value& operator+=(Value value) {
+        Value& operator+=(const Value& value) {
             ref_to_value += value;
             return ref_to_value;
         }
@@ -57,7 +57,7 @@ public:
         // проход по всем кускам мапы
         for(auto& item : m_vct_items) {
             // сначала блокируем
-            std::lock_guard guard(item.mutex);
+            std::lock_guard<std::mutex> guard(item.mutex);
             // потом вставляем
             result.insert(item.map.begin(), item.map.end());
         }

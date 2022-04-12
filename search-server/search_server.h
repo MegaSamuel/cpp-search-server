@@ -238,15 +238,12 @@ std::vector<Document> SearchServer::FindAllDocuments(ExecutionPolicy&& policy, c
 
         std::map<int, double> document_to_relevance = concurrent_document_to_relevance.BuildOrdinaryMap();
 
-        std::vector<Document> matched_documents;
-        matched_documents.reserve(document_to_relevance.size());
-        for(const auto& [document_id, relevance] : document_to_relevance) {
-            matched_documents.push_back({
-                document_id,
-                relevance,
-                documents_.at(document_id).rating
+        std::vector<Document> matched_documents(document_to_relevance.size());
+
+        transform(policy, document_to_relevance.begin(), document_to_relevance.end(), matched_documents.begin(),
+            [this](const auto& it) {
+                return Document(it.first, it.second, documents_.at(it.first).rating);
             });
-        }
 
         return matched_documents;
     }
