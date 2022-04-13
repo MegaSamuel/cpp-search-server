@@ -5,7 +5,6 @@ RequestQueue::RequestQueue(const SearchServer& search_server) : m_search_server(
     m_request_no_result = 0;
 }
 
-
 std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentStatus status) {
     return AddFindRequest(raw_query, 
         [status]
