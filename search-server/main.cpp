@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-//#include "search_server_test.h"
+#include "test_example_functions.h"
 #include "process_queries.h"
 #include "request_queue.h"
 #include "paginator.h"
