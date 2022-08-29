@@ -5,8 +5,13 @@ SOURCES = $(sort $(patsubst %.cpp,%.o,$(wildcard *.cpp)))
 OBJECTS = $(SOURCES:.cpp=.o)
 PRJNAME = search_server
 
+ifeq ($(OS),Windows_NT)
 CMD_DELETE	=	del /F
 EXESUFFIX	=	.exe
+else
+CMD_DELETE	=	rm -f
+EXESUFFIX	=
+endif
 
 all: $(SOURCES) $(PRJNAME)
 	
