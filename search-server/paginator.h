@@ -99,7 +99,6 @@ std::ostream& operator<<(std::ostream& output, const IteratorRange<Iterator>& ra
     for(auto it = range.begin(); it != range.end(); ++it) {
         output << *it;
     }
-    //output << endl;
     return output;
 }
 

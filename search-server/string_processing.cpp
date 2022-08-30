@@ -1,7 +1,6 @@
 #include "string_processing.h"
 
 std::vector<std::string_view> SplitIntoWords(std::string_view text) {
-    // реализацию взяли из 7-го спринта
     std::vector<std::string_view> words;
     const int64_t pos_end = text.npos;
     text.remove_prefix(0);

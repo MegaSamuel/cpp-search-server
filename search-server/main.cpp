@@ -80,11 +80,11 @@ void Test(string_view mark, const SearchServer& search_server, const vector<stri
 #define TEST(policy) Test(#policy, search_server, queries, execution::policy)
 
 int main() {
-// {
-//     TestSearchServer();
-//     // Если вы видите эту строку, значит все тесты прошли успешно
-//     cout << "Search server testing finished"s << endl;
-// }
+{
+    TestSearchServer();
+    // Если вы видите эту строку, значит все тесты прошли успешно
+    cout << "Search server testing finished"s << endl;
+}
 
 {
     SearchServer search_server("and with"s);

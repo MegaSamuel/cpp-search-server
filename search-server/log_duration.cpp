@@ -1,9 +1,5 @@
 #include "log_duration.h"
 
-// LogDuration::LogDuration(const std::string& str, std::ostream& output) : 
-//     text_(str), output_(output) {
-// }
-
 LogDuration::LogDuration(const std::string_view str, std::ostream& output) : 
     text_(str), output_(output) {
 }

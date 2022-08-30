@@ -114,9 +114,6 @@ void SearchServer::RemoveDocument(int document_id) {
     documents_.erase(document_id);
     documents_id_.erase(document_id);
     document_to_word_freqs_.erase(document_id);
-
-    // удаляем документ с document_id из всех публичных структур
-    // document_to_set_words.erase(document_id);
 }
 
 void SearchServer::RemoveDocument(const std::execution::sequenced_policy&, int document_id) {
@@ -150,9 +147,6 @@ void SearchServer::RemoveDocument(const std::execution::parallel_policy&, int do
     documents_.erase(document_id);
     documents_id_.erase(document_id);
     document_to_word_freqs_.erase(document_id);
-
-    // удаляем документ с document_id из всех публичных структур
-    // document_to_set_words.erase(document_id);
 }
 
 tuple<vector<string_view>, DocumentStatus> SearchServer::MatchDocument(const string_view raw_query, int document_id) const {
